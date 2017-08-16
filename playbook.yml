@@ -1,0 +1,43 @@
+---
+- name: Install kube-prompt on a remote system
+  hosts: "kube-prompt"
+  vars:
+    # Use the environment variable if exists, otherwise $HOME/go.
+    gopath: "{{ ansible_env['GOPATH'] | default( ansible_user_dir ~ '/go' ) }}"
+    kube_prompt_path: "github.com/c-bata/kube-prompt"
+
+  tasks:
+    # Install the Golang dep command on the remote system.
+    - name: Get the Go dep code and compile it
+      # The -u flag instructs get to use the network to update the named
+      # packages and their dependencies.
+      command: go get -v -u github.com/golang/dep/cmd/dep
+
+    # Install the kube-prompt go package on the remote system.
+    - name: Get the kube-prompt code
+      command: "go get -v {{ kube_prompt_path }}"
+      # This command will fail, until the dependencies are managed.
+      ignore_errors: true
+
+    # Change directory and manage the dependencies for the kube-prompt package.
+    - name: Manage the dependencies of the kube-prompt package
+      command: "{{ gopath }}/bin/dep ensure -v"
+      args:
+        chdir: "{{ gopath }}/src/{{ kube_prompt_path }}"
+
+    # Change directory and build the kube-prompt in the GOPATH/bin directory.
+    - name: Build the kube-prompt project
+      command: "go build -v {{ kube_prompt_path }}"
+      args:
+        chdir: "{{ gopath }}/bin"
+
+    # Ensure the kube-prompt file exists in the bin directory.
+    - name: Ensure the kube-prompt binary was built
+      file:
+        path: "{{ gopath }}/bin/kube-prompt"
+        state: file
+
+    # Print out the location of the resulting binary file.
+    - name: Print out the location of the kube-prompt binary
+      debug:
+        msg: "The kube-prompt binary can be found at: {{ gopath }}/bin/kube-prompt"
